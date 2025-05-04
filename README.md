@@ -1,16 +1,68 @@
+# Benchmark tools for binned profile maximum likelihood fitting
 
-## combine
-### installation
-From https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/#standalone-compilation
+The following was done on submit82.mit.edu
 
+## Make synthetic inputs
+Run 
 ```bash
-git clone https://github.com/cms-analysis/HiggsAnalysis-CombinedLimit.git HiggsAnalysis/CombinedLimit
-cd HiggsAnalysis/CombinedLimit/ 
-# git checkout <some release>
-. env_standalone.sh
-make -j 4
+python generate.py --nBins 100 --nEvent 1000000 --nSystematics 100 -o inputs/
 ```
 
-### running
-source env_standalone.sh
+## CombineTF2
+Running the fit
+``` bash 
+combinetf2_fit test/combinetf2.hdf5 -o test/ -t 0 --saveHists --saveHistsPerProcess --computeHistErrors --allowNegativePOI
+```
+The `--allowNegativePOI` is needed to not square the signal strength parameter (to be fixed in combinetf2)
 
+Parameter pulls and constraints
+```bash
+combinetf2_print_pulls_and_constraints test/fitresults.hdf5
+```
+
+Plots
+```bash
+combinetf2_plot_hists.py test/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250505_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --yscale 1.4 --prefit --rrange 0.8 1.2
+combinetf2_plot_hists.py test/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250505_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --yscale 1.4
+```
+
+## Combine
+
+Setting up environment (outside singularity)
+```bash
+source HiggsAnalysis/CombinedLimit/env_standalone.sh
+```
+
+```bash
+cd text/combine
+text2workspace.py datacard.txt -m 125
+combine -M MultiDimFit -t 0 -d datacard.root --algo singles
+```
+
+Investigate the fit parameters
+```bash
+combine -M FitDiagnostics -t 0 -d datacard.root
+root -l fitDiagnosticsTest.root
+root [1] fit_s->Print()
+```
+
+## CombineTF
+Setting up environment (outside singularity)
+```bash
+source /cvmfs/cms.cern.ch/cmsset_default.sh
+APPTAINER_BIND="/tmp,/home/submit,/work/submit,/scratch/submit,/ceph/submit/,/cvmfs,/etc/grid-security,/run" cmssw-cc7
+export SCRAM_ARCH="slc7_amd64_gcc700"
+cmsrel CMSSW_10_6_19_patch2
+cd CMSSW_10_6_19_patch2/src/
+cmsenv
+git clone -b tensorflowfit git@github.com:bendavid/HiggsAnalysis-CombinedLimit.git HiggsAnalysis/CombinedLimit
+cd HiggsAnalysis/CombinedLimit
+scram b -j 8
+```
+
+Converting the combine datacards to combineTF 
+```bash
+cd text/
+# text2hdf5 datacard.txt 
+combinetf.py combinetf1.hdf5 --binByBinStat -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it
+```

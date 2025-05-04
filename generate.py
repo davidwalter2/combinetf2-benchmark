@@ -207,7 +207,6 @@ def main():
 
     ### define systematic uncertainties
     # keep track of systematics to assign systematic shifts
-    # systematics = ["norm", "norm_bkg"]
     # define normalization uncertainties
     #   1 fully correlated,
     #   1 correlated across all backgrounds
@@ -221,15 +220,11 @@ def main():
         m.add_norm_uncertainty("norm_bkg", 0.02)
         m.add_norm_uncertainty(f"norm_{m.name}", 0.05)
 
-        # systematics.append(f"norm_{m.name}")
-
 
     # define shape uncertainties
     # make systematic uncertainties with size of std=1%, but maximum 50%
     sigma, mu, lo, hi = 0.01, 0, 0, 0.5
     for i in range(args.nSystematics):
-        # systematics.append(f"syst_{i}_local")
-        # systematics.append(f"syst_{i}_local_bkg")
 
         basis = local_gaussian_basis()
         delta = random_normal(sigma, mu, lo, hi)
@@ -237,8 +232,6 @@ def main():
         basis_bkg = local_gaussian_basis()
         delta_bkg = random_normal(sigma, mu, lo, hi)
         for m in models:
-            # systematics.append(f"syst_{i}_local_{m.name}")
-
             # fully correlated across all backgrounds -> 1
             m.add_systematic(f"syst_{i}_local", basis, delta)
 
@@ -264,7 +257,7 @@ def main():
     logger.info("=== add data ===")
     data = get_data(models, theta)
 
-    ## combineTF2
+    ## combineTF1/2
     writer = tensorwriter.TensorWriter(
         sparse=False,
         systematic_type="log_normal",
@@ -292,12 +285,17 @@ def main():
                 "ch0",
             )
 
+
     writer.write(outfolder=directory, outfilename="combinetf2")
 
+    writer.symmetric_tensor = False # for combinetf1
+    writer.write(outfolder=directory, outfilename="combinetf1")
 
-    ## CombineTF1
+    ## pyHF
+
 
     ## Combine
+    # https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/
 
     # generate root file
     with uproot.recreate(f"{directory}/combine/shapes.root") as f:
@@ -312,8 +310,8 @@ def main():
             for syst_name, syst in m.shape_systematics.items():
                 syst_pred = m.get_prediction(syst_name=syst_name)
                 
-                f[f"{m.name}/{m.name}_{syst_name}up"] = syst_pred[0]
-                f[f"{m.name}/{m.name}_{syst_name}down"] = syst_pred[1]
+                f[f"{m.name}/{syst_name}Up"] = syst_pred[0]
+                f[f"{m.name}/{syst_name}Down"] = syst_pred[1]
 
     # generate data card
     with open(f"{directory}/combine/datacard.txt", "w") as f:
@@ -323,10 +321,10 @@ def main():
         f.write(f"jmax {len(models)-1}  number of processes minus 1\n")
         f.write(f"kmax {len(theta)}  number of nuisance parameters (explicitly defined below)\n")
         f.write(f"shapes data_obs * shapes.root $PROCESS\n\n")
-        f.write(f"shapes * * shapes.root $PROCESS/$PROCESS $PROCESS/$PROCESS__$SYSTEMATIC\n\n")
+        f.write(f"shapes * * shapes.root $PROCESS/$PROCESS $PROCESS/$SYSTEMATIC\n\n")
 
         # Observations
-        f.write("bin         ch0 \n")
+        f.write("bin         bin1 \n")
         f.write(f"observation {sum(data)}\n\n")
 
         # Processes and rates
@@ -352,7 +350,7 @@ def main():
             rows["rate"].append("-1")  # -1 tells Combine to get shape rate from ROOT
 
         for key in ["bin", "process", "process_index", "rate"]:
-            f.write(f"{key:<12} {' '.join(rows[key])}\n")
+            f.write(f"{key.replace("process_index","process"):<12} {' '.join(rows[key])}\n")
         f.write("\n")
 
         # Systematics
@@ -361,13 +359,13 @@ def main():
             f.write(f"{name:<20} {systype:<10} ")
             for m in models:
                 if name in m.norm_uncertainties.keys():
-                    f.write(f"{m.norm_uncertainties[name]} ")
+                    f.write(f"{1 + m.norm_uncertainties[name]} ")
                 else:
                     f.write("- ")
             f.write("\n")
 
         for name in Model.systematics:
-            systype = "shape"
+            systype = "shapeN2" # shapeN2 corresponds to bin by bin lnN variations (what is done in combineTF1/2)
             f.write(f"{name:<20} {systype:<10} ")
             for m in models:
                 if name in m.shape_systematics.keys():
@@ -375,6 +373,8 @@ def main():
                 else:
                     f.write("- ")
             f.write("\n")
+
+        # f.write(f"* autoMCStats -1 1\n\n")
 
 
 

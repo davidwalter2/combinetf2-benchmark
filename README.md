@@ -5,25 +5,25 @@ The following was done on submit82.mit.edu
 ## Make synthetic inputs
 Run 
 ```bash
-python generate.py --nBins 100 --nEvent 1000000 --nSystematics 100 -o inputs/
+python generate.py --nBins 100 --nSystematics 100 -o inputs/
 ```
 
 ## CombineTF2
 Running the fit
 ``` bash 
-combinetf2_fit test/combinetf2.hdf5 -o test/ -t 0 --saveHists --saveHistsPerProcess --computeHistErrors --allowNegativePOI
+combinetf2_fit.py inputs/combinetf2.hdf5 -o inputs/ -t 0 --saveHists --saveHistsPerProcess --computeHistErrors --allowNegativePOI
 ```
 The `--allowNegativePOI` is needed to not square the signal strength parameter (to be fixed in combinetf2)
 
 Parameter pulls and constraints
 ```bash
-combinetf2_print_pulls_and_constraints test/fitresults.hdf5
+combinetf2_print_pulls_and_constraints.py inputs/fitresults.hdf5
 ```
 
 Plots
 ```bash
-combinetf2_plot_hists.py test/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250505_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --yscale 1.4 --prefit --rrange 0.8 1.2
-combinetf2_plot_hists.py test/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250505_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --yscale 1.4
+combinetf2_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250505_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --config style_config.py --yscale 1.4 --prefit --rrange 0.8 1.2
+combinetf2_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250505_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --config style_config.py --yscale 1.4
 ```
 
 ## Combine

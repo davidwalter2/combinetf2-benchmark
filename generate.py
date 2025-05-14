@@ -30,7 +30,7 @@ def make_parser():
     )
     parser.add_argument("-o", "--output", default="./", help="output directory")
     parser.add_argument(
-        "--nEvents", 
+        "--nEventsPerBin", 
         type=int, 
         help="Number of events for the toy model",
         default=1000
@@ -88,11 +88,11 @@ class Model:
     systematics = set()
     norm_systematics = set()
 
-    def __init__(self, name, nevents, nbins, cdf=None, inv_cdf=None, mu=None, sigma=None):
+    def __init__(self, name, events_per_bin, nbins, cdf=None, inv_cdf=None, mu=None, sigma=None):
         self.name=name
 
         self.nbins = int(nbins)
-        self.nevents = int(nevents)
+        self.nevents = int(events_per_bin) * nbins
 
         # models can be either specified by giving the inverse cdf transform to generate them from, in this case also the pdf has to be provided
         #   xor by giving a gaussian mu and sigma
@@ -155,13 +155,15 @@ class Model:
         Model.systematics.add(name)
         
 
-def get_data(models, theta, data_stat=True, vary_systematics=True):
+def get_data(models, mu, theta, data_stat=True, vary_systematics=True):
     # data follows poisson distributed 
     central = 0
     for m in models:
         pred = m.get_asimov()
         logger.debug(f"sum({m.name})={np.sum(pred)}")
 
+        if m.name=="signal":
+            pred *= mu
 
         if vary_systematics:
             # norm uncertainties
@@ -193,16 +195,16 @@ def main():
 
     ### define signal and background models
     models = [
-        Model("signal", 0.2*args.nEvents, args.nBins, mu=0.5,sigma=0.2),
-        Model("bkg0", 0.1*args.nEvents, args.nBins, lambda x: x, lambda x: x),
-        Model("bkg1", 0.1*args.nEvents, args.nBins, lambda x: x**2, lambda x: np.sqrt(x)),
-        Model("bkg2", 0.1*args.nEvents, args.nBins, lambda x: 2*x-x**2, lambda x: 1 - np.sqrt(1-x)),
-        Model("bkg3", 0.1*args.nEvents, args.nBins, mu=0.5, sigma=0.5),
-        Model("bkg4", 0.1*args.nEvents, args.nBins, mu=0.2, sigma=0.5),
-        Model("bkg5", 0.1*args.nEvents, args.nBins, mu=0.8, sigma=0.5),
-        Model("bkg6", 0.1*args.nEvents, args.nBins, mu=0.4, sigma=0.25),
-        Model("bkg7", 0.1*args.nEvents, args.nBins, mu=0.6, sigma=0.25),
-
+        Model("signal", 0.2*args.nEventsPerBin, args.nBins, lambda x: 2*x-x**2, lambda x: 1 - np.sqrt(1-x)),
+        Model("bkg0", 0.1*args.nEventsPerBin, args.nBins, mu=0.0, sigma=0.5),
+        Model("bkg1", 0.1*args.nEventsPerBin, args.nBins, mu=0.2, sigma=0.5),
+        Model("bkg2", 0.1*args.nEventsPerBin, args.nBins, mu=0.4, sigma=0.5),
+        Model("bkg3", 0.1*args.nEventsPerBin, args.nBins, mu=0.6, sigma=0.5),
+        Model("bkg4", 0.1*args.nEventsPerBin, args.nBins, mu=0.8, sigma=0.5),
+        Model("bkg5", 0.1*args.nEventsPerBin, args.nBins, mu=1.0, sigma=0.5),
+        # Model("bkg6", 0.1*args.nEventsPerBin, args.nBins, lambda x: x**2, lambda x: np.sqrt(x)),
+        Model("bkg6", 0.1*args.nEventsPerBin, args.nBins, lambda x: 2*x-x**2, lambda x: 1 - np.sqrt(1-x)),
+        Model("bkg7", 0.1*args.nEventsPerBin, args.nBins, lambda x: x, lambda x: x),
     ]
 
     ### define systematic uncertainties
@@ -248,21 +250,22 @@ def main():
     # shift nuisances in data generation
     theta = {syst: np.random.normal(0, 1) for syst in Model.systematics}
     theta.update({syst: np.random.normal(0, 1) for syst in Model.norm_systematics})
-    # theta = {syst: 0 for syst in Model.systematics}
+    # random signal strength
+    mu = random_normal(0.05, 1, 0.5, 1.5) 
 
     ### compute data, predictions, and systematic variations, and write them out
     for m in models:
         m.generate_samples()
 
     logger.info("=== add data ===")
-    data = get_data(models, theta)
+    data = get_data(models, mu, theta)
 
     ## combineTF1/2
     writer = tensorwriter.TensorWriter(
         sparse=False,
         systematic_type="log_normal",
     )
-    writer.add_channel([hist.axis.Regular(args.nBins, 0,1, overflow=False, underflow=False)], "ch0")
+    writer.add_channel([hist.axis.Regular(args.nBins, 0,1, overflow=False, underflow=False, name="x")], "ch0")
     writer.add_data(data, "ch0")
 
     logger.info("=== add processes ===")

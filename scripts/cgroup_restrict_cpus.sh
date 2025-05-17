@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -e
-
 # Read target number of CPUs (default 8)
 NUM_CPUS="${1:-8}"
 LAST_CPU=$((NUM_CPUS - 1))
@@ -23,5 +21,3 @@ sudo bash -c "echo $$ > $CG/cgroup.procs"
 
 echo "[+] Now restricted to CPUs:"
 taskset -cp $$
-
-set +e

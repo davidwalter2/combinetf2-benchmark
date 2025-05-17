@@ -10,9 +10,9 @@ export OMP_NUM_THREADS="1"
 export OPENBLAS_NUM_THREADS=$(($1>64 ? 64 : $1))
 
 start=$(date +%s%3N) 
-combinetf2_fit.py $2/combinetf2.hdf5 -t 0 --unblind 'r:.*' -o test/ 
+combinetf2_fit.py $2/combinetf2.hdf5 -t 0 --unblind '*' -o $3 $5
 end=$(date +%s%3N) 
 elapsed_ms=$(($end - $start))
 elapsed_sec="${elapsed_ms:0:-3}.${elapsed_ms: -3}"
 echo "Operation took $elapsed_sec seconds" 
-echo "$1,$elapsed_sec" >> $3
+echo "$1,$elapsed_sec" >> $4

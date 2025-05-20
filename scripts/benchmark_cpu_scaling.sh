@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 input=$1    # input directory for csv files
-input="/ceph/submit/data/user/d/david_w/WMassAnalysis/combineResults/250502_mw/WMass_eta_pt_charge/"
 output=$2   # output directory for csv files
 
 # following are optional arguments passed into the fitter, e.g. '--noHessian'
@@ -22,9 +21,11 @@ fi
 export APPTAINER_BIND="/tmp,/home/submit,/work/submit,/ceph/submit,/scratch/submit,/cvmfs,/etc/grid-security,/run" 
 
 # Create an array of CPUs to test, skip numbers larger than available CPUs
+available_cpus=$(nproc)
+echo "$available_cpus CPUs available"
 numbers_scans=(768 512 384 256 128 64 32 16 8 4 2 1)
 numbers=()
-for n in "${nunumbers_scansmbers[@]}"; do
+for n in "${numbers_scans[@]}"; do
     if (( n <= available_cpus )); then
         numbers+=("$n")
     fi
@@ -64,12 +65,26 @@ results=$output/timing_cpu_scaling_combinetf2_singularity.csv
 echo "nCPU,time" > $results
 
 CONTAINER=/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:v44
+
+# time needed to set up environment will be subtracted
+start=$(date +%s.%N)
+singularity run $CONTAINER $scripts/setup_combinetf2.sh
+end=$(date +%s.%N)
+offset=$(echo "$end - $start" | bc)
+echo "Time for setting up environment took $offset seconds" 
+
 for n in "${numbers[@]}"; do
     echo "Now at $n CPUs"
 
     source $scripts/cgroup_restrict_cpus.sh "$n"
 
-    singularity run $CONTAINER $scripts/setup_and_run_combinetf2.sh $n $input $output $results $options
+    start=$(date +%s.%N)
+    singularity run $CONTAINER $scripts/setup_and_run_combinetf2.sh $input $output $options
+    end=$(date +%s.%N)
+
+    duration=$(echo "$end - $start - $offset" | bc)
+    echo "Operation took $duration seconds" 
+    echo "$n,$duration" >> $results
 done
 
 

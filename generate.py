@@ -6,6 +6,9 @@ from scipy.stats import norm
 import hist
 import uproot
 import csv
+import json
+import os
+import gzip
 
 from combinetf2 import tensorwriter
 
@@ -306,7 +309,7 @@ def main():
         for n,s in m.norm_uncertainties.items():
             writer.add_lnN_systematic(n, m.name, "ch0", 1+s)
 
-        for syst_name, syst in m.shape_systematics.items():
+        for syst_name in m.shape_systematics.keys():
             syst_pred = m.get_prediction(syst_name=syst_name)
             writer.add_systematic(
                 [syst_pred[0], syst_pred[1]],
@@ -320,112 +323,201 @@ def main():
     writer.symmetric_tensor = False # for combinetf1
     writer.write(outfolder=directory, outfilename="combinetf1")
 
-    ## pyHF
-
-
-    ## Combine
-    # https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/
-
-    # generate root file
-    axis = hist.axis.Regular(args.nBins, 0,1, overflow=False, underflow=False)
-    with uproot.recreate(f"{directory}/combine/shapes.root") as f:
-        h_data = hist.Hist(axis, storage=hist.storage.Double(), data=data)
-
-        f[f"data_obs"] = h_data
-        
+    # skip the cases where we know the fit won't make it
+    if (
+        args.nSystematics < 2048 
+        and (args.nBins <= 10 or args.nSystematics < 1024) 
+        and (args.nBins <= 100 or args.nSystematics < 512) 
+        and (args.nBins <= 1000 or args.nSystematics < 256) 
+        and (args.nBins <= 10000 or args.nSystematics < 128)
+        and (args.nBins <= 100000 or args.nSystematics < 64)
+    ):
+        ## pyHF
+        channels = []
+        modifiers = []
         for m in models:
+            prediction = m.get_prediction().tolist()
 
-            h_pred = hist.Hist(
-                axis, 
-                storage=hist.storage.Weight() if args.binByBinStat else hist.storage.Double(), 
-                data=m.get_prediction()
-            )
+            model_modifiers = []
 
-            f[f"{m.name}/{m.name}"] = h_pred
+            if m.name=="sig":
+                model_modifiers.append({ 
+                    "name": "sig", 
+                    "type": "normfactor", 
+                    "data": None
+                })
+
+            for name, val in m.norm_uncertainties.items():
+                model_modifiers.append({
+                    "name": name,
+                    "type": "normsys",
+                    "data": [1.0, 1.0 + val],
+                })
 
             for syst_name in m.shape_systematics.keys():
                 syst_pred = m.get_prediction(syst_name=syst_name)
-                
-                h_up = hist.Hist(
-                    axis, 
-                    storage=hist.storage.Double(), 
-                    data=syst_pred[0]
-                )
-                
-                h_down = hist.Hist(
-                    axis, 
-                    storage=hist.storage.Double(), 
-                    data=syst_pred[1]
-                )
+                model_modifiers.append({
+                    "name": syst_name,
+                    "type": "histosys",
+                    "data": {
+                        "hi_data": syst_pred[0].tolist(), 
+                        "lo_data": syst_pred[1].tolist()
+                    },
+                })
 
-                f[f"{m.name}/{syst_name}Up"] = h_up
-                f[f"{m.name}/{syst_name}Down"] = h_down
+            if args.binByBinStat:
+                model_modifiers.append({
+                    "name": "staterror",
+                    "type": "shapesys",
+                    "data": prediction,  # uncertainties here, not the shape!
+                })
 
-    # generate data card
-    with open(f"{directory}/combine/datacard.txt", "w") as f:
+            modifiers.append(model_modifiers)
 
-        # Header
-        f.write(f"imax 1  number of bins\n")
-        f.write(f"jmax {len(models)-1}  number of processes minus 1\n")
-        f.write(f"kmax {len(theta)}  number of nuisance parameters (explicitly defined below)\n")
-        f.write(f"shapes data_obs * shapes.root $PROCESS\n\n")
-        f.write(f"shapes * * shapes.root $PROCESS/$PROCESS $PROCESS/$SYSTEMATIC\n\n")
+            channels.append({
+                "name": m.name,
+                "samples": [{
+                    "name": m.name,
+                    "data": prediction,
+                    "modifiers": model_modifiers
+                }]
+            })
 
-        # Observations
-        f.write("bin         bin1 \n")
-        f.write(f"observation {sum(data)}\n\n")
-
-        # Processes and rates
-        rows = {
-            "bin": [],
-            "process": [],
-            "process_index": [],
-            "rate": []
+        spec = {
+            "version": "1.0.0",
+            "channels": [{
+                "name": "bin1",
+                "samples": [{
+                    "name": m.name,
+                    "data": m.get_prediction().tolist(),
+                    "modifiers": modifiers[i],
+                } for i, m in enumerate(models)]
+            }],
+            "measurements": [{
+                "name": "measurement",
+                "config": {
+                    "parameters": [{"name": s, "inits": [1.0]} for s in Model.norm_systematics | Model.systematics],
+                    "poi": models[0].name  # e.g. first model is the signal
+                }
+            }],
+            "observations": [{
+                "name": "bin1",
+                "data": data.tolist()
+            }]
         }
 
-        # Processes and rates
-        rows = {
-            "bin": [],
-            "process": [],
-            "process_index": [],
-            "rate": []
-        }
+        if not os.path.exists(f"{directory}/pyhf/"):
+            os.makedirs(f"{directory}/pyhf/")
+        
+        outfile=f"{directory}/pyhf/workspace.json.gz"
+        logger.info(f"Write output file {outfile}")
+        with gzip.open(outfile, "wt") as f:
+            json.dump(spec, f, indent=2)
 
-        for i, m in enumerate(models):
-            rows["bin"].append("bin1")
-            rows["process"].append(m.name)
-            rows["process_index"].append(str(i))
-            rows["rate"].append("-1")  # -1 tells Combine to get shape rate from ROOT
 
-        for key in ["bin", "process", "process_index", "rate"]:
-            f.write(f"{key.replace('process_index','process'):<12} {' '.join(rows[key])}\n")
-        f.write("\n")
+        ## Combine
+        # https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/
 
-        # Systematics
-        for name in Model.norm_systematics:
-            systype = "lnN"
-            f.write(f"{name:<20} {systype:<10} ")
+        # generate root file
+        axis = hist.axis.Regular(args.nBins, 0,1, overflow=False, underflow=False)
+        logger.info(f"Write output file {directory}/combine/shapes.json")
+        with uproot.recreate(f"{directory}/combine/shapes.root") as f:
+            h_data = hist.Hist(axis, storage=hist.storage.Double(), data=data)
+
+            f[f"data_obs"] = h_data
+            
             for m in models:
-                if name in m.norm_uncertainties.keys():
-                    f.write(f"{1 + m.norm_uncertainties[name]} ")
-                else:
-                    f.write("- ")
+
+                h_pred = hist.Hist(
+                    axis, 
+                    storage=hist.storage.Weight() if args.binByBinStat else hist.storage.Double(), 
+                    data=m.get_prediction()
+                )
+
+                f[f"{m.name}/{m.name}"] = h_pred
+
+                for syst_name in m.shape_systematics.keys():
+                    syst_pred = m.get_prediction(syst_name=syst_name)
+                    
+                    h_up = hist.Hist(
+                        axis, 
+                        storage=hist.storage.Double(), 
+                        data=syst_pred[0]
+                    )
+                    
+                    h_down = hist.Hist(
+                        axis, 
+                        storage=hist.storage.Double(), 
+                        data=syst_pred[1]
+                    )
+
+                    f[f"{m.name}/{syst_name}Up"] = h_up
+                    f[f"{m.name}/{syst_name}Down"] = h_down
+
+        # generate data card
+        logger.info(f"Write output file {directory}/combine/datacard.json")
+        with open(f"{directory}/combine/datacard.txt", "w") as f:
+
+            # Header
+            f.write(f"imax 1  number of bins\n")
+            f.write(f"jmax {len(models)-1}  number of processes minus 1\n")
+            f.write(f"kmax {len(theta)}  number of nuisance parameters (explicitly defined below)\n")
+            f.write(f"shapes data_obs * shapes.root $PROCESS\n\n")
+            f.write(f"shapes * * shapes.root $PROCESS/$PROCESS $PROCESS/$SYSTEMATIC\n\n")
+
+            # Observations
+            f.write("bin         bin1 \n")
+            f.write(f"observation {sum(data)}\n\n")
+
+            # Processes and rates
+            rows = {
+                "bin": [],
+                "process": [],
+                "process_index": [],
+                "rate": []
+            }
+
+            # Processes and rates
+            rows = {
+                "bin": [],
+                "process": [],
+                "process_index": [],
+                "rate": []
+            }
+
+            for i, m in enumerate(models):
+                rows["bin"].append("bin1")
+                rows["process"].append(m.name)
+                rows["process_index"].append(str(i))
+                rows["rate"].append("-1")  # -1 tells Combine to get shape rate from ROOT
+
+            for key in ["bin", "process", "process_index", "rate"]:
+                f.write(f"{key.replace('process_index','process'):<12} {' '.join(rows[key])}\n")
             f.write("\n")
 
-        for name in Model.systematics:
-            systype = "shapeN2" # shapeN2 corresponds to bin by bin lnN variations (what is done in combineTF1/2)
-            f.write(f"{name:<20} {systype:<10} ")
-            for m in models:
-                if name in m.shape_systematics.keys():
-                    f.write("1 ")
-                else:
-                    f.write("- ")
-            f.write("\n")
+            # Systematics
+            for name in Model.norm_systematics:
+                systype = "lnN"
+                f.write(f"{name:<20} {systype:<10} ")
+                for m in models:
+                    if name in m.norm_uncertainties.keys():
+                        f.write(f"{1 + m.norm_uncertainties[name]} ")
+                    else:
+                        f.write("- ")
+                f.write("\n")
 
-        if args.binByBinStat:
-            f.write(f"* autoMCStats -1 1\n\n")
+            for name in Model.systematics:
+                systype = "shapeN2" # shapeN2 corresponds to bin by bin lnN variations (what is done in combineTF1/2)
+                f.write(f"{name:<20} {systype:<10} ")
+                for m in models:
+                    if name in m.shape_systematics.keys():
+                        f.write("1 ")
+                    else:
+                        f.write("- ")
+                f.write("\n")
 
-    # subprocess.run(f"text2workspace.py {directory}/combine/datacard.txt -o {directory}combine/datacard.hdf5 -m 125", shell=True, check=True)
+            if args.binByBinStat:
+                f.write(f"* autoMCStats -1 1\n\n")
 
     ## Write out parameters
     params = {"sig": mu, **theta}

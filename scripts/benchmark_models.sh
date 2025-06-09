@@ -15,7 +15,10 @@ scripts="$BENCHMARK_BASE/scripts"
 
 export APPTAINER_BIND="/tmp,/home/submit,/work/submit,/ceph/submit,/scratch/submit,/cvmfs,/etc/grid-security,/run" 
 
-scan_bins=(10 100 1000 10000 100000)
+# scan_bins=(10 100 1000 10000 100000)
+# scan_systs=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)
+
+scan_bins=(10000) 
 scan_systs=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)
 
 source env_combinetf2/bin/activate
@@ -52,100 +55,129 @@ benchmark_command() {
 }
 
 
-### make models
-source env_combinetf2/bin/activate
-source setup.sh
-for nbins in "${scan_bins[@]}"; do
-    for nsysts in "${scan_systs[@]}"; do
-        echo "Make model with $nbins" bins and $nsysts systematics
+# ### make models
+# source env_combinetf2/bin/activate
+# source setup.sh
+# for nbins in "${scan_bins[@]}"; do
+#     for nsysts in "${scan_systs[@]}"; do
+#         echo "Make model with $nbins" bins and $nsysts systematics
 
-        model=$project/model_nBins${nbins}_nSysts${nsysts}
+#         model=$project/model_nBins${nbins}_nSysts${nsysts}
 
-        python generate.py -o $model --nBins $nbins --nSystematics $nsysts
+#         python generate.py -o $model --nBins $nbins --nSystematics $nsysts
 
-    done
-done
-
-
-### combineTF 2 (virt. env.)
-echo "==========================================="
-suffix="combinetf2"
-results=$project/timing_model_scaling_$suffix.csv
-echo "nBins,nSyst,fit,mem_real" > $results
-source setup.sh
-for nbins in "${scan_bins[@]}"; do
-    for nsysts in "${scan_systs[@]}"; do
-        echo "Benchmark CombineTF 2 (virt. env.) with $nbins" bins and $nsysts systematics
-
-        model=$project/model_nBins${nbins}_nSysts${nsysts}
-        memlog=$model/memlog_$suffix.txt
-        command="combinetf2_fit.py $model/combinetf2.hdf5 -t 0 --noBinByBinStat --unblind '.*' --allowNegativePOI -o $model/ --postfix combinetf2 $options"
-
-        # run; if duration >600 s the function returns 1 → break out
-        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results"; then
-            break          
-        fi
-    done
-done
+#     done
+# done
 
 
-### combineTF 2 (singularity)
-echo "==========================================="
-suffix="combinetf2_singularity"
-results=$project/timing_model_scaling_combinetf2_singularity.csv
-echo "nBins,nSyst,fit,mem_real" > $results
+# ### combineTF 2 (virt. env.)
+# echo "==========================================="
+# suffix="combinetf2"
+# results=$project/timing_model_scaling_$suffix.csv
+# echo "nBins,nSyst,fit,mem_real" > $results
+# source setup.sh
+# for nbins in "${scan_bins[@]}"; do
+#     for nsysts in "${scan_systs[@]}"; do
+#         echo "Benchmark CombineTF 2 (virt. env.) with $nbins" bins and $nsysts systematics
 
-CONTAINER=/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:v44
+#         model=$project/model_nBins${nbins}_nSysts${nsysts}
+#         memlog=$model/memlog_$suffix.txt
+#         command="combinetf2_fit.py $model/combinetf2.hdf5 -t 0 --noBinByBinStat --unblind '.*' --allowNegativePOI -o $model/ --postfix combinetf2 $options"
 
-# time needed to set up environment will be subtracted
-start=$(date +%s.%N)
-singularity run $CONTAINER $scripts/setup_combinetf2.sh
-end=$(date +%s.%N)
-offset=$(echo "$end - $start" | bc)
-echo "Time for setting up environment took $offset seconds" 
+#         # run; if duration >600 s the function returns 1 → break out
+#         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results"; then
+#             break          
+#         fi
+#     done
+# done
 
-for nbins in "${scan_bins[@]}"; do
-    for nsysts in "${scan_systs[@]}"; do
-        echo "Benchmark CombineTF 2 (singularity) with $nbins" bins and $nsysts systematics
+# ### combineTF 2 (singularity)
+# echo "==========================================="
+# suffix="combinetf2_singularity"
+# results=$project/timing_model_scaling_$suffix.csv
+# echo "nBins,nSyst,fit,mem_real" > $results
 
-        model=$project/model_nBins${nbins}_nSysts${nsysts}
-        memlog=$model/memlog_$suffix.txt
-        command="singularity run \"$CONTAINER\" $scripts/setup_and_run_combinetf2.sh $model $model $options"
+# CONTAINER=/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:v44
 
-        # run; if duration >600 s the function returns 1 → break out
-        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
-            break          
-        fi
-    done
-done
+# # time needed to set up environment will be subtracted
+# start=$(date +%s.%N)
+# singularity run $CONTAINER $scripts/setup_combinetf2.sh
+# end=$(date +%s.%N)
+# offset=$(echo "$end - $start" | bc)
+# echo "Time for setting up environment took $offset seconds" 
+
+# for nbins in "${scan_bins[@]}"; do
+#     for nsysts in "${scan_systs[@]}"; do
+#         echo "Benchmark CombineTF 2 (singularity) with $nbins" bins and $nsysts systematics
+
+#         model=$project/model_nBins${nbins}_nSysts${nsysts}
+#         memlog=$model/memlog_$suffix.txt
+#         command="singularity run \"$CONTAINER\" $scripts/setup_and_run_combinetf2.sh $model $model \"--postfix $suffix --noBinByBinStat $options\""
+
+#         # run; if duration >600 s the function returns 1 → break out
+#         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
+#             break          
+#         fi
+#     done
+# done
+
+# ### combineTF 2 (singularity, eager)
+# echo "==========================================="
+# suffix="combinetf2_singularity_eager"
+# results=$project/timing_model_scaling_$suffix.csv
+# echo "nBins,nSyst,fit,mem_real" > $results
+
+# CONTAINER=/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:v44
+
+# # time needed to set up environment will be subtracted
+# start=$(date +%s.%N)
+# singularity run $CONTAINER $scripts/setup_combinetf2.sh
+# end=$(date +%s.%N)
+# offset=$(echo "$end - $start" | bc)
+# echo "Time for setting up environment took $offset seconds" 
+
+# for nbins in "${scan_bins[@]}"; do
+#     for nsysts in "${scan_systs[@]}"; do
+#         echo "Benchmark CombineTF 2 (singularity) with $nbins" bins and $nsysts systematics
+
+#         model=$project/model_nBins${nbins}_nSysts${nsysts}
+#         memlog=$model/memlog_$suffix.txt
+#         command="singularity run \"$CONTAINER\" $scripts/setup_and_run_combinetf2.sh $model $model \"--postfix $suffix --noBinByBinStat --eager $options\""
+
+#         # run; if duration >600 s the function returns 1 → break out
+#         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
+#             break          
+#         fi
+#     done
+# done
 
 
-### combineTF 1
-echo "==========================================="
-suffix="scaling_combinetf1"
-results=$project/timing_model_$suffix.csv
-echo "nBins,nSyst,fit,mem_real" > $results
-source /cvmfs/cms.cern.ch/cmsset_default.sh
-# time needed to set up environment will be subtracted
-start=$(date +%s.%N)
-cmssw-cc7 --command-to-run "cd CMSSW_10_6_19_patch2/src/ ; cmsenv ; cd -"
-end=$(date +%s.%N)
-offset=$(echo "$end - $start" | bc)
-echo "Time for setting up environment took $offset seconds" 
-for nbins in "${scan_bins[@]}"; do
-    for nsysts in "${scan_systs[@]}"; do
-        echo "Benchmark CombineTF 1 with $nbins" bins and $nsysts systematics
+# ### combineTF 1
+# echo "==========================================="
+# suffix="scaling_combinetf1"
+# results=$project/timing_model_$suffix.csv
+# echo "nBins,nSyst,fit,mem_real" > $results
+# source /cvmfs/cms.cern.ch/cmsset_default.sh
+# # time needed to set up environment will be subtracted
+# start=$(date +%s.%N)
+# cmssw-cc7 --command-to-run "cd CMSSW_10_6_19_patch2/src/ ; cmsenv ; cd -"
+# end=$(date +%s.%N)
+# offset=$(echo "$end - $start" | bc)
+# echo "Time for setting up environment took $offset seconds" 
+# for nbins in "${scan_bins[@]}"; do
+#     for nsysts in "${scan_systs[@]}"; do
+#         echo "Benchmark CombineTF 1 with $nbins" bins and $nsysts systematics
 
-        model=$project/model_nBins${nbins}_nSysts${nsysts}
-        memlog=$model/memlog_$suffix.txt
-        command="cmssw-cc7 --command-to-run \"cd CMSSW_10_6_19_patch2/src/ ; cmsenv ; combinetf.py $model/combinetf1.hdf5 --outputDir $model -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it $options; cd -\""
+#         model=$project/model_nBins${nbins}_nSysts${nsysts}
+#         memlog=$model/memlog_$suffix.txt
+#         command="cmssw-cc7 --command-to-run \"cd CMSSW_10_6_19_patch2/src/ ; cmsenv ; combinetf.py $model/combinetf1.hdf5 --outputDir $model -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it $options; cd -\""
 
-        # run; if duration >600 s the function returns 1 → break out
-        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
-            break          
-        fi
-    done
-done
+#         # run; if duration >600 s the function returns 1 → break out
+#         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
+#             break          
+#         fi
+#     done
+# done
 
 
 # ### combine 9.2.1 (via podman)
@@ -178,52 +210,61 @@ done
 # done
 
 
-### combine 10.2.1 (via setting environment variables)
-echo "==========================================="
-suffix="combine_10p2p0"
-results=$project/timing_model_scaling_$suffix.csv
-echo "nBins,nSyst,fit,mem_real,preparation" > $results
+# ### combine 10.2.1 (via setting environment variables)
+# echo "==========================================="
+# suffix="combine_10p2p0"
+# results=$project/timing_model_scaling_$suffix.csv
+# echo "nBins,nSyst,fit,mem_real,preparation" > $results
 
-for nbins in "${scan_bins[@]}"; do
-    for nsysts in "${scan_systs[@]}"; do
-        echo "Benchmark Combine with $nbins" bins and $nsysts systematics
+# for nbins in "${scan_bins[@]}"; do
+#     for nsysts in "${scan_systs[@]}"; do
+#         echo "Benchmark Combine with $nbins" bins and $nsysts systematics
 
-        model=$project/model_nBins${nbins}_nSysts${nsysts}
-        memlog=$model/memlog_$suffix.txt
+#         model=$project/model_nBins${nbins}_nSysts${nsysts}
+#         memlog=$model/memlog_$suffix.txt
         
-        start=$(date +%s.%N)
-        env -i bash -c "source $scripts/setup_combine.sh; cd $model/combine; text2workspace.py datacard.txt -m 125"
-        end=$(date +%s.%N)
-        preparation=$(echo "$end - $start" | bc)
+#         start=$(date +%s.%N)
+#         env -i bash -c "source $scripts/setup_combine.sh; cd $model/combine; text2workspace.py datacard.txt -m 125"
+#         end=$(date +%s.%N)
+#         preparation=$(echo "$end - $start" | bc)
 
-        command="env -i bash -c 'source $scripts/setup_combine.sh; cd $model/combine; combine -M MultiDimFit -t 0 -d datacard.root --algo singles'"
+#         command="env -i bash -c 'source $scripts/setup_combine.sh; cd $model/combine; combine -M MultiDimFit -t 0 -d datacard.root --algo singles'"
 
-        # run; if duration >600 s the function returns 1 → break out
-        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
-            break     
-        fi
-    done
-done
+#         # run; if duration >600 s the function returns 1 → break out
+#         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
+#             break     
+#         fi
+#     done
+# done
 
 
-### pyhf w/ minuit (virtual environment)
+### pyhf
 echo "==========================================="
-suffix="pyhf_numpy_minuit"
-results=$project/timing_model_$suffix.csv
-echo "nBins,nSyst,fit,mem_real,preparation" > $results
+backends=("numpy" "tensorflow" "jax" "pytorch") 
+minimizers=("minuit") # "scipy")
 
-for nbins in "${scan_bins[@]}"; do
-    for nsysts in "${scan_systs[@]}"; do
-        echo "Benchmark Combine with $nbins" bins and $nsysts systematics
+for backend in "${backends[@]}"; do
+    for minimizer in "${minimizers[@]}"; do
+        echo "Benchmark pyhf with $backend" and $minimizer
 
-        model=$project/model_nBins${nbins}_nSysts${nsysts}
-        memlog=$model/memlog_$suffix.txt
-        command="python scripts/fit_pyhf.py -i $model/pyhf/workspace.json --backend numpy --optimizer minuit"
+        suffix="pyhf_${backend}_${minimizer}"
+        results=$project/timing_model_scaling_$suffix.csv
+        echo "nBins,nSyst,fit,mem_real,preparation" > $results
 
-        # run; if duration >600 s the function returns 1 → break out
-        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
-            break     
-        fi
+        for nbins in "${scan_bins[@]}"; do
+            for nsysts in "${scan_systs[@]}"; do
+                echo "Benchmark Combine with $nbins" bins and $nsysts systematics
+
+                model=$project/model_nBins${nbins}_nSysts${nsysts}
+                memlog=$model/memlog_$suffix.txt
+                command="python scripts/fit_pyhf.py -i $model/pyhf/workspace.json.gz --backend numpy --optimizer minuit"
+
+                # run; if duration >600 s the function returns 1 → break out
+                if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
+                    break     
+                fi
+            done
+        done
     done
 done
 

@@ -26,9 +26,13 @@ def create_plot(
     linestyles = ["-", "--"]
     for n, l, c, m in (
         ("combine_10p2p0", "Combine", "green", "."),
-        ("combinetf1", "CombineTF", "blue", "o"),
-        ("combinetf2_singularity", "CombineTF 2 (sing.)", "orange", "*"),
+        ("combinetf1", "CombineTF", "brown", "o"),
         ("combinetf2", "CombineTF 2 (virt. env.)", "red", "x"),
+        ("combinetf2_singularity", "CombineTF 2 (sing.)", "orange", "*"),
+        ("combinetf2_singularity_eager", "CombineTF 2 (sing., eager)", "purple", "*"),
+        ("pyhf_numpy_minuit", "PyHF+Numpy+Minuit", "blue", "P"),
+        ("pyhf_numpy_scipy", "PyHF+Numpy+Scipy", "deepskyblue", "P"),
+        ("pyhf_jax_scipy", "PyHF+JAX+Scipy", "cyan", "P"),
     ):
         for i, csv_file_dir in enumerate(csv_file_dirs):
             csv_file = f"{csv_file_dir}/timing_model_scaling_{n}.csv"
@@ -37,8 +41,8 @@ def create_plot(
                 continue
             
             df = pd.read_csv(csv_file)
-            print(f"Successfully loaded {csv_file}")
-            print(f"Columns found: {', '.join(df.columns)}")
+            # print(f"Successfully loaded {csv_file}")
+            # print(f"Columns found: {', '.join(df.columns)}")
 
             df = df.loc[df["nBins"]==nBins]
 

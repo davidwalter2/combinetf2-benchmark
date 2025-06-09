@@ -30,7 +30,7 @@ combinetf2_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/co
 
 Setting up environment (outside singularity)
 ```bash
-source setup_combine.sh
+source scripts/setup_combine.sh
 ```
 
 ```bash

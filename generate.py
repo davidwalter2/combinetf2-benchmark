@@ -9,6 +9,8 @@ import csv
 import json
 import os
 import gzip
+import h5py
+from wums import ioutils
 
 from combinetf2 import tensorwriter
 
@@ -62,6 +64,14 @@ def make_parser():
         action="store_true",
         help="Vary limited MC size",
         )
+    parser.add_argument(
+        "--pyhfOutputFormat", 
+        type=str,
+        choices=["hdf5", "json", "json.gz"],
+        default="hdf5",
+        help="Output format for pyhf",
+        )
+    
 
     return parser.parse_args()
 
@@ -336,7 +346,7 @@ def main():
         channels = []
         modifiers = []
         for m in models:
-            prediction = m.get_prediction().tolist()
+            prediction = m.get_prediction()
 
             model_modifiers = []
 
@@ -351,7 +361,7 @@ def main():
                 model_modifiers.append({
                     "name": name,
                     "type": "normsys",
-                    "data": [1.0, 1.0 + val],
+                    "data": ioutils.H5PickleProxy([1.0, 1.0 + val]),
                 })
 
             for syst_name in m.shape_systematics.keys():
@@ -360,16 +370,16 @@ def main():
                     "name": syst_name,
                     "type": "histosys",
                     "data": {
-                        "hi_data": syst_pred[0].tolist(), 
-                        "lo_data": syst_pred[1].tolist()
+                        "hi_data": ioutils.H5PickleProxy(syst_pred[0]), 
+                        "lo_data": ioutils.H5PickleProxy(syst_pred[1])
                     },
                 })
 
             if args.binByBinStat:
                 model_modifiers.append({
-                    "name": "staterror",
-                    "type": "shapesys",
-                    "data": prediction,  # uncertainties here, not the shape!
+                    "name": f"MCstat",
+                    "type": "staterror",
+                    "data": ioutils.H5PickleProxy(np.sqrt(prediction)),
                 })
 
             modifiers.append(model_modifiers)
@@ -378,7 +388,7 @@ def main():
                 "name": m.name,
                 "samples": [{
                     "name": m.name,
-                    "data": prediction,
+                    "data": ioutils.H5PickleProxy(prediction),
                     "modifiers": model_modifiers
                 }]
             })
@@ -389,7 +399,7 @@ def main():
                 "name": "bin1",
                 "samples": [{
                     "name": m.name,
-                    "data": m.get_prediction().tolist(),
+                    "data": ioutils.H5PickleProxy(m.get_prediction()),
                     "modifiers": modifiers[i],
                 } for i, m in enumerate(models)]
             }],
@@ -402,17 +412,24 @@ def main():
             }],
             "observations": [{
                 "name": "bin1",
-                "data": data.tolist()
+                "data": ioutils.H5PickleProxy(data)
             }]
         }
 
         if not os.path.exists(f"{directory}/pyhf/"):
             os.makedirs(f"{directory}/pyhf/")
         
-        outfile=f"{directory}/pyhf/workspace.json.gz"
+        outfile=f"{directory}/pyhf/workspace.{args.pyhfOutputFormat}"
         logger.info(f"Write output file {outfile}")
-        with gzip.open(outfile, "wt") as f:
-            json.dump(spec, f, indent=2)
+        if args.pyhfOutputFormat.endswith("hdf5"):
+            fout = h5py.File(outfile, "w")
+            ioutils.pickle_dump_h5py("spec", spec, fout)
+        elif args.pyhfOutputFormat.endswith(".gz"):
+            with gzip.open(outfile, "wt") as f:
+                json.dump(spec, f, indent=2)        
+        else:
+            with open(outfile, "wt") as f:
+                json.dump(spec, f, indent=2)
 
 
         ## Combine
@@ -428,11 +445,19 @@ def main():
             
             for m in models:
 
-                h_pred = hist.Hist(
-                    axis, 
-                    storage=hist.storage.Weight() if args.binByBinStat else hist.storage.Double(), 
-                    data=m.get_prediction()
-                )
+                if args.binByBinStat:
+                    h_pred = hist.Hist(
+                        axis, 
+                        storage=hist.storage.Weight(), 
+                    )
+                    h_pred.values()[...] = m.get_prediction()
+                    h_pred.variances()[...] = m.get_prediction()
+                else:
+                    h_pred = hist.Hist(
+                        axis, 
+                        storage=hist.storage.Double(), 
+                        data=m.get_prediction()
+                    )
 
                 f[f"{m.name}/{m.name}"] = h_pred
 
@@ -527,6 +552,13 @@ def main():
         writer.writerow(["param", "value"])  # Header
         for key, value in params.items():
             writer.writerow([key, value])
+
+    ## Write out data factorial part for the likelihood
+    from scipy.special import gammaln
+    log_data_fac = np.sum(gammaln(data+1))
+    with open(f"{directory}/log_data_factorial.txt", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([log_data_fac.tolist()])
 
 
 if __name__ == "__main__":

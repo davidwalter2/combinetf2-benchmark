@@ -8,22 +8,22 @@ Run
 python generate.py --nBins 100 --nSystematics 100 -o inputs/
 ```
 
-## CombineTF2
+## Rabbit
 Running the fit
 ``` bash 
-combinetf2_fit.py inputs/combinetf2.hdf5 -o inputs/ -t 0 --unblind '*' --allowNegativePOI --noBinByBinStat  --saveHists --saveHistsPerProcess --computeHistErrors -m Basemodel
+rabbit_fit.py inputs/rabbit.hdf5 -o inputs/ -t 0 --unblind '*' --allowNegativePOI --noBinByBinStat  --saveHists --saveHistsPerProcess --computeHistErrors -m Basemodel
 ```
-The `--allowNegativePOI` is needed to not square the signal strength parameter (to be fixed in combinetf2)
+The `--allowNegativePOI` is needed to not square the signal strength parameter (to be fixed in rabbit)
 
 Parameter pulls and constraints
 ```bash
-combinetf2_print_pulls_and_constraints.py inputs/fitresults.hdf5
+rabbit_print_pulls_and_constraints.py inputs/fitresults.hdf5
 ```
 
 Plots
 ```bash
-combinetf2_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250517_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --config style_config.py --yscale 1.4 --prefit --rrange 0.8 1.2
-combinetf2_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250517_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --config style_config.py --yscale 1.4
+rabbit_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250517_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --config style_config.py --yscale 1.4 --prefit --rrange 0.8 1.2
+rabbit_plot_hists.py inputs/fitresults.hdf5 -m Basemodel -o ~/public_html/combinetf2-benchmark/250517_test --titlePos 0 --extraTextLoc 0.03 0.97 --subtitle Preliminary --config style_config.py --yscale 1.4
 ```
 
 ## Combine

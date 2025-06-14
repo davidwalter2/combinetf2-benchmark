@@ -3,7 +3,7 @@ if [[ "$SCRIPT_FILE_REL_PATH" == "" ]]; then
   SCRIPT_FILE_REL_PATH="${(%):-%N}"
 fi
 
-source combinetf2/setup.sh
+source rabbit/setup.sh
 source wums/setup.sh
 
 export OMP_NUM_THREADS="1"

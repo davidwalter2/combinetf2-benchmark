@@ -12,7 +12,7 @@ import gzip
 import h5py
 from wums import ioutils
 
-from combinetf2 import tensorwriter
+from rabbit import tensorwriter
 
 from wums import logging 
 
@@ -300,7 +300,7 @@ def main():
     logger.info("=== add data ===")
     data = get_data(models, mu, theta)
 
-    ## combineTF1/2
+    ## combineTF & rabbit
     writer = tensorwriter.TensorWriter(
         sparse=False,
         systematic_type="log_normal",
@@ -328,10 +328,10 @@ def main():
                 "ch0",
             )
 
-    writer.write(outfolder=directory, outfilename="combinetf2")
+    writer.write(outfolder=directory, outfilename="rabbit")
 
-    writer.symmetric_tensor = False # for combinetf1
-    writer.write(outfolder=directory, outfilename="combinetf1")
+    writer.symmetric_tensor = False # for combinetf
+    writer.write(outfolder=directory, outfilename="combinetf")
 
     # skip the cases where we know the fit won't make it
     if (
@@ -542,7 +542,7 @@ def main():
                 f.write("\n")
 
             if args.binByBinStat:
-                f.write(f"* autoMCStats -1 1\n\n")
+                f.write(f"* autoMCStats 1 1\n\n")
 
     ## Write out parameters
     params = {"sig": mu, **theta}

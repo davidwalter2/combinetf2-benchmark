@@ -4,7 +4,7 @@ if [[ "$SCRIPT_FILE_REL_PATH" == "" ]]; then
 fi
 BENCHMARK_BASE=$( cd "$( dirname "${SCRIPT_FILE_REL_PATH}" )" && pwd )
 
-source combinetf2/setup.sh
+source rabbit/setup.sh
 source wums/setup.sh
 
 # source HiggsAnalysis/CombinedLimit/env_standalone.sh

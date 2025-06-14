@@ -1,6 +1,6 @@
-[submodule "combinetf2"]
-	path = combinetf2
-	url = git@github.com:WMass/combinetf2.git
+[submodule "rabbit"]
+        path = rabbit
+        url = https://github.com/WMass/rabbit
 [submodule "wums"]
 	path = wums
 	url = https://github.com/WMass/wums

@@ -20,8 +20,8 @@ def create_plot(
     linestyles = ["-", "--"]
     for n, l, c, m in (
         ("combinetf1", "CombineTF", "blue", "o"),
-        ("combinetf2_singularity", "CombineTF 2 (sing.)", "orange", "*"),
-        ("combinetf2", "CombineTF 2 (virt. env.)", "red", "x"),
+        ("combinetf2_singularity", "Rabbit (sing.)", "orange", "*"),
+        ("combinetf2", "Rabbit (virt. env.)", "red", "x"),
     ):
         for i, csv_file_dir in enumerate(csv_file_dirs):
             csv_file = f"{csv_file_dir}/timing_cpu_scaling_{n}.csv"

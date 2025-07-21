@@ -3,7 +3,22 @@ project=$1
 
 # following are optional arguments passed into the fitter, e.g. '--noHessian'
 shift 1
+
+binByBinStat=""
+rabbit_binByBinStat="--noBinByBinStat"
+for arg in "$@"; do
+    case $arg in
+        --binByBinStat)
+            binByBinStat="--binByBinStat"
+            rabbit_binByBinStat="--binByBinStatType normal"
+            shift 1
+            ;;
+    esac
+done
+
 options=("$@")
+
+echo "run with $binByBinStat $rabbit_binByBinStat"
 
 if [[ ! -d "$project" ]]; then
     echo "Create project directory $project"
@@ -14,13 +29,18 @@ source setup.sh
 scripts="$BENCHMARK_BASE/scripts"
 
 
+
+# command to create combine workspace
+textws="text2workspace.py datacard.txt -m 125 --no-b-only --for-fits --no-wrappers --use-histsum --optimize-simpdf-constraints=cms"
+
+
 export APPTAINER_BIND="/tmp,/home/submit,/work/submit,/ceph/submit,/scratch/submit,/cvmfs,/etc/grid-security,/run" 
 
 # scan_bins=(10 100 1000 10000 100000)
 # scan_systs=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)
 
-scan_bins=(10000) 
-scan_systs=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192)
+scan_bins=(1000 10000 100000) 
+scan_systs=(1 2 4 8 16 32 64 128 256 512 1024 2048 4096 8192 16384)
 
 source env_combinetf2/bin/activate
 
@@ -65,7 +85,7 @@ benchmark_command() {
 
 #         model=$project/model_nBins${nbins}_nSysts${nsysts}
 
-#         python generate.py -o $model --nBins $nbins --nSystematics $nsysts
+#         python generate.py -o $model --nBins $nbins --nSystematics $nsysts $binByBinStat
 
 #     done
 # done
@@ -83,7 +103,7 @@ benchmark_command() {
 
 #         model=$project/model_nBins${nbins}_nSysts${nsysts}
 #         memlog=$model/memlog_$suffix.txt
-#         command="rabbit_fit.py $model/rabbit.hdf5 -t 0 --noBinByBinStat --unblind '.*' --allowNegativePOI -o $model/ --postfix rabbit $options"
+#         command="rabbit_fit.py $model/rabbit.hdf5 -t 0 --unblind '.*' --allowNegativePOI -o $model/ --postfix $suffix $rabbit_binByBinStat $options"
 
 #         # run; if duration >600 s the function returns 1 → break out
 #         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results"; then
@@ -113,7 +133,7 @@ benchmark_command() {
 
 #         model=$project/model_nBins${nbins}_nSysts${nsysts}
 #         memlog=$model/memlog_$suffix.txt
-#         command="singularity run \"$CONTAINER\" $scripts/setup_and_run_rabbit.sh $model $model \"--postfix $suffix --noBinByBinStat $options\""
+#         command="singularity run \"$CONTAINER\" $scripts/setup_and_run_rabbit.sh $model $model \"--postfix $suffix $rabbit_binByBinStat $options\""
 
 #         # run; if duration >600 s the function returns 1 → break out
 #         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
@@ -143,7 +163,7 @@ benchmark_command() {
 
 #         model=$project/model_nBins${nbins}_nSysts${nsysts}
 #         memlog=$model/memlog_$suffix.txt
-#         command="singularity run \"$CONTAINER\" $scripts/setup_and_run_rabbit.sh $model $model \"--postfix $suffix --noBinByBinStat --eager $options\""
+#         command="singularity run \"$CONTAINER\" $scripts/setup_and_run_rabbit.sh $model $model \"--postfix $suffix $rabbit_binByBinStat --eager $options\""
 
 #         # run; if duration >600 s the function returns 1 → break out
 #         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
@@ -171,7 +191,7 @@ benchmark_command() {
 
 #         model=$project/model_nBins${nbins}_nSysts${nsysts}
 #         memlog=$model/memlog_$suffix.txt
-#         command="cmssw-cc7 --command-to-run \"cd CMSSW_10_6_19_patch2/src/ ; cmsenv ; combinetf.py $model/combinetf.hdf5 --outputDir $model -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it $options; cd -\""
+#         command="cmssw-cc7 --command-to-run \"cd CMSSW_10_6_19_patch2/src/ ; cmsenv ; combinetf.py $model/combinetf.hdf5 --outputDir $model -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it $binByBinStat $options; cd -\""
 
 #         # run; if duration >600 s the function returns 1 → break out
 #         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "$offset"; then
@@ -193,7 +213,7 @@ benchmark_command() {
 #         model=$project/model_nBins${nbins}_nSysts${nsysts}
 
 #         start=$(date +%s.%N)
-#         env -i bash -c "source $scripts/setup_combine.sh; cd $model/combine; text2workspace.py datacard.txt -m 125"
+#         env -i bash -c "source $scripts/setup_combine.sh; cd $model/combine; $textws"
 #         end=$(date +%s.%N)
 #         preparation=$(echo "$end - $start" | bc)
 
@@ -211,63 +231,79 @@ benchmark_command() {
 # done
 
 
-# ### combine 10.2.1 (via setting environment variables)
-# echo "==========================================="
-# suffix="combine_10p2p0"
-# results=$project/timing_model_scaling_$suffix.csv
-# echo "nBins,nSyst,fit,mem_real,preparation" > $results
-
-# for nbins in "${scan_bins[@]}"; do
-#     for nsysts in "${scan_systs[@]}"; do
-#         echo "Benchmark Combine with $nbins" bins and $nsysts systematics
-
-#         model=$project/model_nBins${nbins}_nSysts${nsysts}
-#         memlog=$model/memlog_$suffix.txt
-        
-#         start=$(date +%s.%N)
-#         env -i bash -c "source $scripts/setup_combine.sh; cd $model/combine; text2workspace.py datacard.txt -m 125"
-#         end=$(date +%s.%N)
-#         preparation=$(echo "$end - $start" | bc)
-
-#         command="env -i bash -c 'source $scripts/setup_combine.sh; cd $model/combine; combine -M MultiDimFit -t 0 -d datacard.root --algo singles --saveNLL --X-rtd REMOVE_CONSTANT_ZERO_POINT=1 --cminSetZeroPoint 0'"
-
-#         # run; if duration >600 s the function returns 1 → break out
-#         if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
-#             break     
-#         fi
-#     done
-# done
-
-
-### pyhf
+### combine 10.2.1 (via setting environment variables)
 echo "==========================================="
-backends=("numpy" "tensorflow" "jax" "pytorch") 
-minimizers=("minuit") # "scipy")
+suffix="text2workspace"
+results=$project/timing_model_scaling_$suffix.csv
+echo "nBins,nSyst,fit,mem_real" > $results
 
-for backend in "${backends[@]}"; do
-    for minimizer in "${minimizers[@]}"; do
-        echo "Benchmark pyhf with $backend" and $minimizer
+for nbins in "${scan_bins[@]}"; do
+    for nsysts in "${scan_systs[@]}"; do
+        echo "Benchmark text2workspace with $nbins" bins and $nsysts systematics
 
-        suffix="pyhf_${backend}_${minimizer}"
-        results=$project/timing_model_scaling_$suffix.csv
-        echo "nBins,nSyst,fit,mem_real,preparation" > $results
+        model=$project/model_nBins${nbins}_nSysts${nsysts}
+        memlog=$model/memlog_$suffix.txt
+        
+        command="env -i bash -c 'source $scripts/setup_combine.sh; cd $model/combine; $textws'"
 
-        for nbins in "${scan_bins[@]}"; do
-            for nsysts in "${scan_systs[@]}"; do
-                echo "Benchmark Combine with $nbins" bins and $nsysts systematics
-
-                model=$project/model_nBins${nbins}_nSysts${nsysts}
-                memlog=$model/memlog_$suffix.txt
-                command="python scripts/fit_pyhf.py -i $model/pyhf/workspace.json.gz --backend numpy --optimizer minuit"
-
-                # run; if duration >600 s the function returns 1 → break out
-                if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
-                    break     
-                fi
-            done
-        done
+        # run; if duration >600 s the function returns 1; break out
+        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0"; then
+            break     
+        fi
     done
 done
+
+echo "==========================================="
+suffix="combine_10p2p0_v2"
+results=$project/timing_model_scaling_$suffix.csv
+echo "nBins,nSyst,fit,mem_real" > $results
+
+for nbins in "${scan_bins[@]}"; do
+    for nsysts in "${scan_systs[@]}"; do
+        echo "Benchmark Combine with $nbins" bins and $nsysts systematics
+
+        model=$project/model_nBins${nbins}_nSysts${nsysts}
+        memlog=$model/memlog_$suffix.txt
+
+        command="env -i bash -c 'source $scripts/setup_combine.sh; cd $model/combine; combine -M MultiDimFit -t 0 -d datacard.root --algo singles --X-rtd FAST_VERTICAL_MORPH --saveNLL --X-rtd REMOVE_CONSTANT_ZERO_POINT=1 --cminSetZeroPoint 0'"
+
+        # run; if duration >600 s the function returns 1; break out
+        if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0"; then
+            break     
+        fi
+    done
+done
+
+
+# ### pyhf
+# echo "==========================================="
+# backends=("numpy" "tensorflow" "jax" "pytorch") 
+# minimizers=("minuit") # "scipy")
+
+# for backend in "${backends[@]}"; do
+#     for minimizer in "${minimizers[@]}"; do
+#         echo "Benchmark pyhf with $backend" and $minimizer
+
+#         suffix="pyhf_${backend}_${minimizer}"
+#         results=$project/timing_model_scaling_$suffix.csv
+#         echo "nBins,nSyst,fit,mem_real,preparation" > $results
+
+#         for nbins in "${scan_bins[@]}"; do
+#             for nsysts in "${scan_systs[@]}"; do
+#                 echo "Benchmark Combine with $nbins" bins and $nsysts systematics
+
+#                 model=$project/model_nBins${nbins}_nSysts${nsysts}
+#                 memlog=$model/memlog_$suffix.txt
+#                 command="python scripts/fit_pyhf.py -i $model/pyhf/workspace.hdf5 --backend numpy --optimizer minuit"
+
+#                 # run; if duration >600 s the function returns 1 → break out
+#                 if ! benchmark_command "$command" "$memlog" "$nbins" "$nsysts" "$results" "0" "$preparation"; then
+#                     break     
+#                 fi
+#             done
+#         done
+#     done
+# done
 
 
 # ### combine 10.2.1 with auto diff. (via setting environment variables) FIXME: This doesn't work at the moment
@@ -284,7 +320,7 @@ done
         
 #         # cd $model/combine
 #         # start=$(date +%s.%N)
-#         # $scripts/setup_and_run_combine.sh text2workspace.py datacard.txt -m 125
+#         # $scripts/setup_and_run_combine.sh $textws
 #         # end=$(date +%s.%N)
 #         # preparation=$(echo "$end - $start" | bc)
 

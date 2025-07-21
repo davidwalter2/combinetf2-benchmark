@@ -107,7 +107,7 @@ def local_gaussian_basis(mu=None, sigma=None, amplitude=1.0):
     return lambda x, a=amplitude: a * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
 
-def fourier_basis(frequency, phase):
+def sinus_basis(frequency, phase):
     return lambda x, f=frequency, p=phase: np.sin(2*np.pi*f*(x + p))
 
 
@@ -277,7 +277,7 @@ def main():
         # frequency
         frequency =  np.random.uniform(0.25, args.nBins/2.)
         phase = np.random.uniform(0, 1)
-        basis = fourier_basis(frequency, phase)
+        basis = sinus_basis(frequency, phase)
 
         for m in models:
             # fully correlated across all processes, 
@@ -431,7 +431,14 @@ def main():
             with open(outfile, "wt") as f:
                 json.dump(spec, f, indent=2)
 
-
+    if (
+        args.nSystematics < 2048 
+        and (args.nBins <= 10 or args.nSystematics < 8192) 
+        and (args.nBins <= 100 or args.nSystematics < 4096) 
+        and (args.nBins <= 1000 or args.nSystematics < 2048) 
+        and (args.nBins <= 10000 or args.nSystematics < 1024)
+        and (args.nBins <= 100000 or args.nSystematics < 512)
+    ):
         ## Combine
         # https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/
 
@@ -444,19 +451,20 @@ def main():
             f[f"data_obs"] = h_data
             
             for m in models:
+                pred = m.get_prediction()
 
                 if args.binByBinStat:
                     h_pred = hist.Hist(
                         axis, 
                         storage=hist.storage.Weight(), 
                     )
-                    h_pred.values()[...] = m.get_prediction()
-                    h_pred.variances()[...] = m.get_prediction()
+                    h_pred.values()[...] = pred
+                    h_pred.variances()[...] = pred
                 else:
                     h_pred = hist.Hist(
                         axis, 
                         storage=hist.storage.Double(), 
-                        data=m.get_prediction()
+                        data=pred
                     )
 
                 f[f"{m.name}/{m.name}"] = h_pred
@@ -484,7 +492,7 @@ def main():
         with open(f"{directory}/combine/datacard.txt", "w") as f:
 
             # Header
-            f.write(f"imax 1  number of bins\n")
+            f.write(f"imax 1 number of bins\n")
             f.write(f"jmax {len(models)-1}  number of processes minus 1\n")
             f.write(f"kmax {len(theta)}  number of nuisance parameters (explicitly defined below)\n")
             f.write(f"shapes data_obs * shapes.root $PROCESS\n\n")
@@ -493,14 +501,6 @@ def main():
             # Observations
             f.write("bin         bin1 \n")
             f.write(f"observation {sum(data)}\n\n")
-
-            # Processes and rates
-            rows = {
-                "bin": [],
-                "process": [],
-                "process_index": [],
-                "rate": []
-            }
 
             # Processes and rates
             rows = {
@@ -542,7 +542,7 @@ def main():
                 f.write("\n")
 
             if args.binByBinStat:
-                f.write(f"* autoMCStats 1 1\n\n")
+                f.write(f"* autoMCStats 0 1\n\n")
 
     ## Write out parameters
     params = {"sig": mu, **theta}

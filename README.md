@@ -64,5 +64,5 @@ Converting the combine datacards to combineTF
 ```bash
 cd text/
 # text2hdf5 datacard.txt 
-combinetf.py combinetf1.hdf5 --binByBinStat -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it
+combinetf.py combinetf.hdf5 --binByBinStat -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it
 ```

@@ -10,7 +10,6 @@ ylabels = {
     "fit":"Time in second",
     "mem_real": "Peak memory in MB",
 }
-
 def create_plot(
         csv_file_dirs, 
         nBins,
@@ -25,14 +24,21 @@ def create_plot(
     # Load the CSV files
     linestyles = ["-", "--"]
     for n, l, c, m in (
-        ("combine_10p2p0", "Combine", "green", "."),
-        ("combinetf1", "CombineTF", "brown", "o"),
-        ("combinetf2", "CombineTF 2 (virt. env.)", "red", "x"),
-        ("combinetf2_singularity", "CombineTF 2 (sing.)", "orange", "*"),
-        ("combinetf2_singularity_eager", "CombineTF 2 (sing., eager)", "purple", "*"),
-        ("pyhf_numpy_minuit", "PyHF+Numpy+Minuit", "blue", "P"),
-        ("pyhf_numpy_scipy", "PyHF+Numpy+Scipy", "deepskyblue", "P"),
-        ("pyhf_jax_scipy", "PyHF+JAX+Scipy", "cyan", "P"),
+        ("pyhf_numpy_minuit", "PyHF", "blue", "P"),
+        # ("pyhf_numpy_minuit", "PyHF+Numpy+Minuit", "darkblue", "P"),
+        # ("pyhf_jax_minuit", "PyHF+JAX+Minuit", "blue", "P"),
+        # ("pyhf_pytorch_minuit", "PyHFt+pyTorch+Minuit", "deepskyblue", "P"),
+        # ("pyhf_tensorflow_minuit", "PyHF+TF+Minuit", "cyan", "P"),
+        # ("pyhf_numpy_scipy", "PyHF+Numpy+Scipy", "deepskyblue", "P"),
+        # ("pyhf_jax_scipy", "PyHF+JAX+Scipy", "cyan", "P"),
+        ("text2workspace", "text2workspace", "olive", "."),
+        # ("combine_10p2p0", "Combine", "green", "."),
+        ("combine_10p2p0_v2", "combine", "green", "."),
+        ("combinetf", "CombineTF", "brown", "o"),
+        ("rabbit_singularity", "Rabbit", "orange", "*"),
+        # ("rabbit", "Rabbit (virt. env.)", "orange", "x"),
+        # ("rabbit_singularity", "Rabbit (sing.)", "orange", "*"),
+        # ("rabbit_singularity_eager", "Rabbit (sing., eager)", "purple", "*"),
     ):
         for i, csv_file_dir in enumerate(csv_file_dirs):
             csv_file = f"{csv_file_dir}/timing_model_scaling_{n}.csv"
@@ -45,6 +51,40 @@ def create_plot(
             # print(f"Columns found: {', '.join(df.columns)}")
 
             df = df.loc[df["nBins"]==nBins]
+
+            if len(df) == 0:
+                continue
+
+            df = df.loc[df["fit"] > 1.8]
+
+            ### check if fits have actually succeeded
+            if n.startswith("text2workspace"):
+                # for text2workspace check if datacard.root is there
+                def path_exists(row):
+                    path = f"{csv_file_dir}/model_nBins{int(row['nBins'])}_nSysts{int(row['nSyst'])}/combine/datacard.root"
+                    return os.path.isfile(path)
+
+                df = df[df.apply(path_exists, axis=1)]
+            elif n.startswith("combine"):
+                def check_success(row):
+                    path = f"{csv_file_dir}/model_nBins{int(row['nBins'])}_nSysts{int(row['nSyst'])}/combine/combine_logger.out"
+                    if not os.path.isfile(path):
+                        return False
+                    try:
+                        with open(path, 'rb') as f:
+                            # Go to the end and read backwards to find the last line
+                            f.seek(-2, os.SEEK_END)
+                            while f.read(1) != b'\n':
+                                f.seek(-2, os.SEEK_CUR)
+                            last_line = f.readline().decode()
+                    except Exception as e:
+                        return False
+
+                    return "Minimization success! status=0" in last_line
+                df = df[df.apply(check_success, axis=1)]
+
+            if len(df) == 0:
+                continue
 
             # Ensure required columns exist
             required_cols = ['nSyst', key]
@@ -68,21 +108,26 @@ def create_plot(
             # print(f"Number of unique CPU values: {len(cpu_groups)}")
             # for cpu, group in cpu_groups:
             #     print(f"nSyst={cpu}: {len(group)} measurements, Avg time: {group[key].mean():.4f}")
+            
+            # if key == "fit" and "preparation" in df.keys():
+            #     # ax1.plot(df["nSyst"].values, df["preparation"].values, label=l+"preparation" if i==0 else None, marker=m, linestyle="dotted", color=c)
+            #     df["fit"] = df["fit"] + df["preparation"]
 
             ax1.plot(df["nSyst"].values, df[key].values, label=l if i==0 else None, marker=m, linestyle=linestyles[i], color=c)
 
-    legend1 = ax1.legend(loc="upper left")
+    legend1 = ax1.legend(loc="upper right")
 
     if len(csv_file_dirs) > 1:
-        line_solid = Line2D([0], [0], color='black', linestyle='-', label='2 EPYC 9965')
-        line_dashed = Line2D([0], [0], color='black', linestyle='--', label='2 EPYC 9654')
+        line_solid = Line2D([0], [0], color='black', linestyle='-', label="no BB-lite")#label='no bin by bin stat.')
+        line_dashed = Line2D([0], [0], color='black', linestyle='--', label="BB-lite")#label='bin by bin stat.')
 
         # Second legend
-        ax1.legend(handles=[line_solid, line_dashed], loc='upper right')
+        # ax1.legend(handles=[line_solid, line_dashed], loc='lower right')
+        ax1.legend(handles=[line_solid, line_dashed], loc='upper left')
 
     ax1.add_artist(legend1)
 
-    ax1.text(0.95, 0.9, f"N(bins) = {nBins}",  transform=ax1.transAxes, ha="right")
+    ax1.text(0.97, 0.02, "$N^\mathrm{bins} = "+f"{nBins}$",  transform=ax1.transAxes, va="bottom", ha="right")
 
     outdir = args.output
     outfile = f"model_{key}_nBins{nBins}"

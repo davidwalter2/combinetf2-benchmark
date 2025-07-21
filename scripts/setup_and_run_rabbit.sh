@@ -9,4 +9,6 @@ source wums/setup.sh
 export OMP_NUM_THREADS="1"
 export OPENBLAS_NUM_THREADS=$((`nproc`>64 ? 64 : `nproc`))
 
-rabbit_fit.py $1/rabbit.hdf5 -t 0 --unblind '.*' -o $2 $3
+echo "rabbit_fit.py $1/rabbit.hdf5 -t 0 --unblind '.*' --allowNegativePOI -o $2 $3"
+
+rabbit_fit.py $1/rabbit.hdf5 -t 0 --unblind '.*' --allowNegativePOI -o $2 $3

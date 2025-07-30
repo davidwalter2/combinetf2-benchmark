@@ -4,7 +4,7 @@ if [[ "$SCRIPT_FILE_REL_PATH" == "" ]]; then
 fi
 BENCHMARK_BASE=$( cd "$( dirname "${SCRIPT_FILE_REL_PATH}" )" && pwd )
 
-source rabbit/setup.sh
+source jax_rabbit/setup.sh
 source wums/setup.sh
 
 export PYTHONPATH="${BENCHMARK_BASE}:$PYTHONPATH"

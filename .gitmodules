@@ -7,3 +7,6 @@
 [submodule "HiggsAnalysis/CombinedLimit"]
 	path = HiggsAnalysis/CombinedLimit
 	url = https://github.com/cms-analysis/HiggsAnalysis-CombinedLimit.git
+[submodule "jax_rabbit"]
+	path = jax_rabbit
+	url = git@github.com:WMass/rabbit.git

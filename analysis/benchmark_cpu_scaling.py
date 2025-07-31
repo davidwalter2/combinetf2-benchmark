@@ -12,19 +12,27 @@ def create_plot(
         xlabel="Number of CPU threads",
         ylabel="Time in second",
         ):
-    
+
+    outdir = output_tools.make_plot_dir(args.outpath, eoscp=False)
+
     # Create the plot
     fig, ax1 = plot_tools.figure([0,1], xlabel, ylabel, xlim=(0.8, 1000), ylim=args.ylim, logy=True, logx=True, logx_base=2)
 
     # Load the CSV files
-    linestyles = ["-", "--"]
-    for n, l, c, m in (
-        ("combinetf1", "CombineTF", "blue", "o"),
-        ("combinetf2_singularity", "Rabbit (sing.)", "orange", "*"),
-        ("combinetf2", "Rabbit (virt. env.)", "red", "x"),
+    colors = ["red", "orange"]
+    for n, l, s, m in (
+        # ("combinetf", "CombineTF", "blue", "o"),
+        ("rabbit", "Rabbit (TF)", "solid", "*"),
+        ("rabbit_jax", "Rabbit (JAX)", "dashed", "x"),
     ):
         for i, csv_file_dir in enumerate(csv_file_dirs):
+
             csv_file = f"{csv_file_dir}/timing_cpu_scaling_{n}.csv"
+            if i==1:
+                label='2 EPYC 9654'
+                csv_file = csv_file.replace("rabbit","rabbit_submit80")
+            else:
+                label='2 EPYC 9965'
 
             if not os.path.isfile(csv_file):
                 continue
@@ -56,24 +64,35 @@ def create_plot(
             for cpu, group in cpu_groups:
                 print(f"nCPU={cpu}: {len(group)} measurements, Avg time: {group['time'].mean():.4f}")
 
-            ax1.plot(df["nCPU"].values, df["time"].values, label=l if i==0 else None, marker=m, linestyle=linestyles[i], color=c)
+            ax1.plot(df["nCPU"].values, df["time"].values, label=label if n=="rabbit" else None, linestyle=s, color=colors[i])
 
     legend1 = ax1.legend(loc="lower left")
 
     if len(csv_file_dirs) > 1:
-        line_solid = Line2D([0], [0], color='black', linestyle='-', label='2 EPYC 9965')
-        line_dashed = Line2D([0], [0], color='black', linestyle='--', label='2 EPYC 9654')
+        line_solid = Line2D([0], [0], color="black", linestyle='-', label='Rabbit (TF)')
+        line_dashed = Line2D([0], [0], color="black", linestyle='--', label='Rabbit (JAX)')
 
         # Second legend
         ax1.legend(handles=[line_solid, line_dashed], loc='upper right')
 
+    plot_tools.add_decor(
+        ax1,
+        args.title,
+        args.subtitle,
+        data=True,
+        lumi=None,
+        loc=args.titlePos,
+        text_size=args.legSize,
+        no_energy=True,
+    )
+
     ax1.add_artist(legend1)
 
-    outdir = args.output
     outfile = "cpu_time"
     if args.postfix:
         outfile += f"_{args.postfix}"
-
+    if args.subtitle == "Preliminary":
+        outfile += "_preliminary"
     plot_tools.save_pdf_and_png(outdir, outfile)
 
     output_tools.write_index_and_log(
@@ -96,7 +115,7 @@ def main():
     )
     parser.add_argument(
         "-o",
-        "--output",
+        "--outpath",
         type=str,
         default="results/",
         help="Output directory",
@@ -112,6 +131,25 @@ def main():
         type=float,
         nargs=2,
         help="Min and max values for y axis (if not specified, range set automatically)",
+    )
+    parser.add_argument(
+        "--title",
+        default="Rabbit",
+        type=str,
+        help="Title to be printed in upper left",
+    )
+    parser.add_argument(
+        "--subtitle",
+        default="",
+        type=str,
+        help="Subtitle to be printed after title",
+    )
+    parser.add_argument("--titlePos", type=int, default=2, help="title position")
+    parser.add_argument(
+        "--legSize",
+        type=str,
+        default="small",
+        help="Legend text size (small: axis ticks size, large: axis label size, number)",
     )
     args = parser.parse_args()
     

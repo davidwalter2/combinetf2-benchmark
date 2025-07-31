@@ -8,6 +8,7 @@ from matplotlib.lines import Line2D
 import glob
 import rabbit.io_tools
 import numpy as np
+import pandas as pd
 
 colors = {
     "Loss": "tab:blue",
@@ -30,6 +31,8 @@ def create_plot(
     
     outdir = output_tools.make_plot_dir(args.outpath, eoscp=False)
 
+    mem_r = []
+    mem_v = []
     is_jax = []
 
     n_systs = []
@@ -80,6 +83,20 @@ def create_plot(
         t_c_h1.append(fitresult["time_hvp_copy_on"])
         t_c_h2.append(fitresult["time_hvp_copy_off"])
 
+        memlog_file = fitresult_file.replace("fitresults", "memlog").replace(".hdf5",".txt")
+
+        if os.path.isfile(memlog_file):
+        
+            df = pd.read_csv(memlog_file, delimiter="\s+", skiprows=1, names=["time","CPU", "Real", "Virtual"])
+            mem_r.append(df["Real"].max()/1000.)
+            mem_v.append(df["Virtual"].max()/1000.)
+        else:
+            mem_r.append(0)
+            mem_v.append(0)
+
+    mem_r = np.array(mem_r)
+    mem_v = np.array(mem_v)
+
     is_jax = np.array(is_jax)
     n_systs = np.array(n_systs)
     n_bins = np.array(n_bins)
@@ -100,12 +117,18 @@ def create_plot(
 
     for nb in list(set(n_bins)):
         if args.extraText is not None:
-            text = args.extraText+r", $N^\mathrm{bins} = "+f"{nb}$"
+            if args.extraTextCols==2:
+                text = args.extraText+",\n"+r" $N^\mathrm{bins} = "+f"{nb}$"
+            else:
+                text = args.extraText+r", $N^\mathrm{bins} = "+f"{nb}$"
         else:
             text = r"$N^\mathrm{bins} = "+f"{nb}$"
 
         idxs = np.where(n_bins == nb)
         sort_idx = np.argsort(n_systs[idxs])
+
+        m_r = mem_r[idxs][sort_idx]
+        m_v = mem_v[idxs][sort_idx]
 
         is_j = is_jax[idxs][sort_idx]
 
@@ -134,6 +157,8 @@ def create_plot(
         # if any(t_t - (t_m + t_o + t_c + t_e + t_h + t_g) != 0):
         #     print("Breakdown not correct")
 
+        xlim = (0.78, max(n_s)*1.3)
+
         # Create the plot
         fig, ax1 = plot_tools.figure([0,1], xlabel, ylabel, xlim=xlim, ylim=args.ylim, logx=True, logx_base=2)
 
@@ -147,7 +172,8 @@ def create_plot(
         outfile = f"nBins{nb}_calls"
         if args.postfix:
             outfile += f"_{args.postfix}"
-
+        if args.subtitle == "Preliminary":
+            outfile += "_preliminary"
         plot_tools.save_pdf_and_png(outdir, outfile)
 
         output_tools.write_index_and_log(
@@ -156,13 +182,13 @@ def create_plot(
             args=args,
         )
 
-        fig, ax1 = plot_tools.figure([0,1], xlabel, ylabel, xlim=xlim, ylim=(0.1, 500), logy=True, logx=True, logx_base=2)
+        fig, ax1 = plot_tools.figure([0,1], xlabel, ylabel, xlim=xlim, ylim=(0.06, 500), logy=True, logx=True, logx_base=2)
 
         custom_lines = [
             Line2D([0], [0], color='black', linestyle='-', label='TF'),
             Line2D([0], [0], color='black', linestyle='--', label='JAX'),
         ]
-        legend2 = ax1.legend(handles=custom_lines, loc='upper center')
+        legend2 = ax1.legend(handles=custom_lines, loc=args.secondColPos)
         ax1.add_artist(legend2)
 
         for j in (0, 1):
@@ -197,13 +223,25 @@ def create_plot(
         # ax1.plot(n_s, t_h2, label="Copy HVP on CPU")
 
 
-        ax1.legend(loc="upper left")
+        plot_tools.add_decor(
+            ax1,
+            args.title,
+            args.subtitle,
+            data=True,
+            lumi=None,
+            loc=args.titlePos,
+            text_size=args.legSize,
+            no_energy=True,
+        )
+
+        ax1.legend(loc="upper left", ncols=args.legCols)
         ax1.text(0.97, 0.02, text,  transform=ax1.transAxes, va="bottom", ha="right")
 
         outfile = f"nBins{nb}_time"
         if args.postfix:
             outfile += f"_{args.postfix}"
-
+        if args.subtitle == "Preliminary":
+            outfile += "_preliminary"
         plot_tools.save_pdf_and_png(outdir, outfile)
 
         output_tools.write_index_and_log(
@@ -224,7 +262,37 @@ def create_plot(
         outfile = f"nBins{nb}_time_per_call"
         if args.postfix:
             outfile += f"_{args.postfix}"
+        if args.subtitle == "Preliminary":
+            outfile += "_preliminary"
+        plot_tools.save_pdf_and_png(outdir, outfile)
 
+        output_tools.write_index_and_log(
+            outdir,
+            outfile,
+            args=args,
+        )
+
+        fig, ax1 = plot_tools.figure([0,1], xlabel, "Max memory [GB]", xlim=xlim, ylim=(1, 2*max(m_v)), logy=True, logx=True, logx_base=2)
+
+        custom_lines = [
+            Line2D([0], [0], color='black', linestyle='-', label='TF'),
+            Line2D([0], [0], color='black', linestyle='--', label='JAX'),
+        ]
+        legend2 = ax1.legend(handles=custom_lines, loc='upper center')
+        ax1.add_artist(legend2)
+
+        for j in (0, 1):
+            ax1.plot(n_s[is_j==j], m_r[is_j==j], label="Real" if j==0 else None, color="red", linestyle="solid" if j==0 else "dashed")
+            ax1.plot(n_s[is_j==j], m_v[is_j==j], label="Virtual" if j==0 else None, color="orange", linestyle="solid" if j==0 else "dashed")
+
+        ax1.legend(loc="upper left")
+        ax1.text(0.97, 0.02, text,  transform=ax1.transAxes, va="bottom", ha="right")
+
+        outfile = f"nBins{nb}_mem"
+        if args.postfix:
+            outfile += f"_{args.postfix}"
+        if args.subtitle == "Preliminary":
+            outfile += "_preliminary"
         plot_tools.save_pdf_and_png(outdir, outfile)
 
         output_tools.write_index_and_log(
@@ -275,6 +343,34 @@ def main():
         "--hess",
         action="store_true",
         help="If hessian was used in loss",
+    )
+    parser.add_argument(
+        "--title",
+        default="Rabbit",
+        type=str,
+        help="Title to be printed in upper left",
+    )
+    parser.add_argument(
+        "--subtitle",
+        default="",
+        type=str,
+        help="Subtitle to be printed after title",
+    )
+    parser.add_argument("--titlePos", type=int, default=2, help="title position")
+    parser.add_argument(
+        "--legSize",
+        type=str,
+        default="small",
+        help="Legend text size (small: axis ticks size, large: axis label size, number)",
+    )
+    parser.add_argument(
+        "--legCols", type=int, default=1, help="Number of columns in legend"
+    )
+    parser.add_argument(
+        "--secondColPos", type=str, default="upper center", help="Location of seonc legend"
+    )
+    parser.add_argument(
+        "--extraTextCols", type=int, default=1, help="Extra text columns"
     )
     args = parser.parse_args()
     

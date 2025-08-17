@@ -10,3 +10,6 @@
 [submodule "jax_rabbit"]
 	path = jax_rabbit
 	url = git@github.com:WMass/rabbit.git
+[submodule "pyhf"]
+	path = pyhf
+	url = https://github.com/scikit-hep/pyhf.git

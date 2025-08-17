@@ -95,42 +95,50 @@ def main():
     dtime = end_time - start_time
     logger.info(f"Time to create model: {dtime}s")
 
+    start_time = time.time()
+
     # does not work for np arrays
     # data = workspace.data(model)
 
     data = np.sum((workspace.observations[c] for c in model.config.channels))
     data = np.append(data, np.array(model.config.auxdata,dtype=int))
 
-    optimizer_args = dict()
-    if args.optimizer == "scipy":
-        optimizer_args["method"] = args.method
+    # optimizer_args = dict()
+    # if args.optimizer == "scipy":
+    #     optimizer_args["method"] = args.method
 
     bestfit, results = pyhf.infer.mle.fit(
         data, 
         model, 
         return_result_obj=True,
-        # return_uncertainties=True,
-        **optimizer_args
+        return_uncertainties=True,
+        # **optimizer_args
     )
 
-    if args.optimizer == "scipy":
-        inv_hess = results.hess_inv
-        n_params = len(bestfit)
-
-        param_variances = np.array([inv_hess.matvec(np.eye(n_params)[i])[i] 
-                                for i in range(n_params)])
+    end_time = time.time()
+    dtime = end_time - start_time
+    logger.info(f"Time to fit: {dtime}s")
 
     logger.info(f"Result: {results}")
 
-    tensorlib, _ = pyhf.get_backend()
-    pars, data = tensorlib.astensor(bestfit), tensorlib.astensor(data)
+    if args.optimizer == "scipy":
+        bestfit = bestfit[:,0]
+
+    #     inv_hess = results.hess_inv
+    #     n_params = len(bestfit)
+
+    #     param_variances = np.array([inv_hess.matvec(np.eye(n_params)[i])[i] 
+    #                             for i in range(n_params)])
+
+
+    # tensorlib, _ = pyhf.get_backend()
+    # pars, data = tensorlib.astensor(bestfit), tensorlib.astensor(data)
     # exp = model.expected_data(pars)
 
     # logger.info(f"Backend: {backend}")
     # logger.info(f"Optimizer: {optimizer}")
     nll = results['fun'] #-2*model.logpdf(bestfit, data)[0]
     logger.info(f"-2*log(L) = {nll}")
-
 
     # if len(pars) > 1:
     #     auxdata = model.expected_auxdata(pars)

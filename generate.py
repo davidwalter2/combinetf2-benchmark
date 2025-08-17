@@ -71,7 +71,14 @@ def make_parser():
         default="hdf5",
         help="Output format for pyhf",
         )
-    
+    parser.add_argument(
+        "--tools", 
+        type=str,
+        choices=["rabbit", "combine", "combinetf", "pyhf"],
+        default=["rabbit", "combine", "combinetf", "pyhf"],
+        nargs="+",
+        help="Output ffor different tools",
+        )
 
     return parser.parse_args()
 
@@ -300,48 +307,51 @@ def main():
     logger.info("=== add data ===")
     data = get_data(models, mu, theta)
 
-    ## combineTF & rabbit
-    writer = tensorwriter.TensorWriter(
-        sparse=False,
-        systematic_type="log_normal",
-    )
-    writer.add_channel([hist.axis.Regular(args.nBins, 0,1, overflow=False, underflow=False, name="x")], "ch0")
-    writer.add_data(data, "ch0")
+    if "rabbit" in args.tools or "combinetf" in args.tools:
 
-    logger.info("=== add processes ===")
-    for m in models:
-        pred = m.get_prediction()
+        ## combineTF & rabbit
+        writer = tensorwriter.TensorWriter(
+            sparse=False,
+            systematic_type="log_normal",
+        )
+        writer.add_channel([hist.axis.Regular(args.nBins, 0,1, overflow=False, underflow=False, name="x")], "ch0")
+        writer.add_data(data, "ch0")
 
-        logger.debug(f"sum({m.name})={np.sum(pred)}")
+        logger.info("=== add processes ===")
+        for m in models:
+            pred = m.get_prediction()
 
-        writer.add_process(pred, m.name, "ch0", signal=m.name=="sig")
+            logger.debug(f"sum({m.name})={np.sum(pred)}")
 
-        for n,s in m.norm_uncertainties.items():
-            writer.add_lnN_systematic(n, m.name, "ch0", 1+s)
+            writer.add_process(pred, m.name, "ch0", signal=m.name=="sig")
 
-        for syst_name in m.shape_systematics.keys():
-            syst_pred = m.get_prediction(syst_name=syst_name)
-            writer.add_systematic(
-                [syst_pred[0], syst_pred[1]],
-                syst_name,
-                m.name,
-                "ch0",
-            )
+            for n,s in m.norm_uncertainties.items():
+                writer.add_lnN_systematic(n, m.name, "ch0", 1+s)
 
-    writer.write(outfolder=directory, outfilename="rabbit")
+            for syst_name in m.shape_systematics.keys():
+                syst_pred = m.get_prediction(syst_name=syst_name)
+                writer.add_systematic(
+                    [syst_pred[0], syst_pred[1]],
+                    syst_name,
+                    m.name,
+                    "ch0",
+                )
 
-    writer.symmetric_tensor = False # for combinetf
-    writer.write(outfolder=directory, outfilename="combinetf")
+        writer.write(outfolder=directory, outfilename="rabbit")
+
+        writer.symmetric_tensor = False # for combinetf
+        writer.write(outfolder=directory, outfilename="combinetf")
 
     # skip the cases where we know the fit won't make it
-    if (
-        args.nSystematics < 2048 
-        and (args.nBins <= 10 or args.nSystematics < 1024) 
-        and (args.nBins <= 100 or args.nSystematics < 512) 
-        and (args.nBins <= 1000 or args.nSystematics < 256) 
-        and (args.nBins <= 10000 or args.nSystematics < 128)
-        and (args.nBins <= 100000 or args.nSystematics < 64)
-    ):
+    # if (
+    #     args.nSystematics < 2048 
+    #     and (args.nBins <= 10 or args.nSystematics < 1024) 
+    #     and (args.nBins <= 100 or args.nSystematics < 512) 
+    #     and (args.nBins <= 1000 or args.nSystematics < 256) 
+    #     and (args.nBins <= 10000 or args.nSystematics < 128)
+    #     and (args.nBins <= 100000 or args.nSystematics < 64)
+    # ):
+    if "pyhf" in args.tools:
         ## pyHF
         channels = []
         modifiers = []
@@ -431,14 +441,17 @@ def main():
             with open(outfile, "wt") as f:
                 json.dump(spec, f, indent=2)
 
-    if (
-        args.nSystematics < 2048 
-        and (args.nBins <= 10 or args.nSystematics < 8192) 
-        and (args.nBins <= 100 or args.nSystematics < 4096) 
-        and (args.nBins <= 1000 or args.nSystematics < 2048) 
-        and (args.nBins <= 10000 or args.nSystematics < 1024)
-        and (args.nBins <= 100000 or args.nSystematics < 512)
-    ):
+    
+
+    # if (
+    #     args.nSystematics < 2048 
+    #     and (args.nBins <= 10 or args.nSystematics < 8192) 
+    #     and (args.nBins <= 100 or args.nSystematics < 4096) 
+    #     and (args.nBins <= 1000 or args.nSystematics < 2048) 
+    #     and (args.nBins <= 10000 or args.nSystematics < 1024)
+    #     and (args.nBins <= 100000 or args.nSystematics < 512)
+    # ):
+    if "combine" in args.tools:
         ## Combine
         # https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/latest/
 

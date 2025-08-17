@@ -66,3 +66,10 @@ cd text/
 # text2hdf5 datacard.txt 
 combinetf.py combinetf.hdf5 --binByBinStat -t 0 --unblind-value --unblind-fit-result --yes-i-really-really-mean-it
 ```
+
+## PyHF
+By default PyHF uses numpy as computational backend with minuit as minimizer. 
+PyHF can be installed from a development branch to get scipy minimizer with uncertainties, see [PR #2269](https://github.com/scikit-hep/pyhf/pull/2269):
+```bash
+pip install --upgrade "pyhf[jax] @ git+https://github.com/phinate/pyhf.git@autodiff-uncerts"
+```
